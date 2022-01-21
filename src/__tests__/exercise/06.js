@@ -2,47 +2,34 @@
 // http://localhost:3000/location
 
 import * as React from 'react'
-import {render, screen, act, waitForElementToBeRemoved} from '@testing-library/react'
+import {render, screen, act} from '@testing-library/react'
 import Location from '../../examples/location'
+import {useCurrentPosition} from 'react-use-geolocation'
 
-beforeAll(() => {
-  window.navigator.geolocation = {
-    getCurrentPosition: jest.fn()
+jest.mock('react-use-geolocation')
+
+test('displays the users current location', () => {
+  let setMockState
+  const useMockCurrentPosition = () => {
+    const [state, setState] = React.useState([])
+    setMockState = setState
+    return state
   }
-})
+  useCurrentPosition.mockImplementation(useMockCurrentPosition)
 
-function deferred() {
-  let resolve, reject
-  const promise = new Promise((res, rej) => {
-    resolve = res
-    reject = rej
-  })
-  return {promise, resolve, reject}
-}
-
-test('displays the users current location', async () => {
   const fakePosition = {
     coords: {
       latitude: 10,
       longitude: 20,
     }
   }
-
-  const {promise, resolve} = deferred()
-  
-  window.navigator.geolocation.getCurrentPosition.mockImplementation(
-    callback => {
-      promise.then(() => callback(fakePosition))
-    }
-  )
   
   render(<Location />)
 
   expect(screen.getByLabelText(/loading/i)).toBeInTheDocument();
   
-  await act(async () => {
-    resolve()
-    await promise
+  act(() => {
+    setMockState([fakePosition])
   })
 
   expect(screen.queryByLabelText(/loading/i)).not.toBeInTheDocument()
@@ -51,7 +38,24 @@ test('displays the users current location', async () => {
   expect(screen.getByText(/longitude/i)).toHaveTextContent(`Longitude: ${fakePosition.coords.longitude}`)
 })
 
-/*
-eslint
-  no-unused-vars: "off",
-*/
+test('show error message when there is an error to get user location', () => {
+  let setMockState
+  const useMockCurrentPosition = () => {
+    const [state, setState] = React.useState([])
+    setMockState = setState
+    return state
+  }
+  useCurrentPosition.mockImplementation(useMockCurrentPosition)
+
+  render(<Location />)
+
+  expect(screen.getByLabelText(/loading/i)).toBeInTheDocument();
+  
+  const error = {message: 'Unable to load user location'}
+  act(() => {
+    setMockState([undefined, error])
+  })
+
+  expect(screen.queryByLabelText(/loading/i)).not.toBeInTheDocument()
+  expect(screen.getByRole('alert')).toHaveTextContent(error.message)
+})
